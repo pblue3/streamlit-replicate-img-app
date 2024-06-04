@@ -1,25 +1,27 @@
-import replicate
+import json
 import streamlit as st
 import requests
+from io import BytesIO
+from PIL import Image
 import zipfile
 import io
 from utils import icon
 from streamlit_image_select import image_select
 
 # UI configurations
-st.set_page_config(page_title="Replicate Image Generator",
+st.set_page_config(page_title="Imaginia",
                    page_icon=":bridge_at_night:",
                    layout="wide")
 icon.show_icon(":foggy:")
 st.markdown("# :rainbow[Text-to-Image Artistry Studio]")
 
 # API Tokens and endpoints from `.streamlit/secrets.toml` file
-REPLICATE_API_TOKEN = st.secrets["REPLICATE_API_TOKEN"]
-REPLICATE_MODEL_ENDPOINTSTABILITY = st.secrets["REPLICATE_MODEL_ENDPOINTSTABILITY"]
+FASTAPI_URL = st.secrets["FASTAPI_URL"]
+#REPLICATE_MODEL_ENDPOINTSTABILITY = st.secrets["REPLICATE_MODEL_ENDPOINTSTABILITY"]
 
 # Resources text, link, and logo
-replicate_text = "Stability AI SDXL Model on Replicate"
-replicate_link = "https://replicate.com/stability-ai/sdxl"
+replicate_text = "ImaginIA"
+replicate_link = "https://imaginia.fr/"
 replicate_logo = "https://storage.googleapis.com/llama2_release/Screen%20Shot%202023-07-21%20at%2012.34.05%20PM.png"
 
 # Placeholders for images and gallery
@@ -36,14 +38,14 @@ def configure_sidebar() -> None:
     """
     with st.sidebar:
         with st.form("my_form"):
-            st.info("**Yo fam! Start here ↓**", icon="👋🏾")
-            with st.expander(":rainbow[**Refine your output here**]"):
+            st.info("Commencez ici !")
+            with st.expander("**Choisir les réglages**"):
                 # Advanced Settings (for the curious minds!)
-                width = st.number_input("Width of output image", value=1024)
-                height = st.number_input("Height of output image", value=1024)
+                width = st.number_input("Width of output image", value=512)
+                height = st.number_input("Height of output image", value=768)
                 num_outputs = st.slider(
-                    "Number of images to output", value=1, min_value=1, max_value=4)
-                scheduler = st.selectbox('Scheduler', ('DDIM', 'DPMSolverMultistep', 'HeunDiscrete',
+                    "Number of images to output", value=1, min_value=1, max_value=2)
+                scheduler = st.selectbox('Style', ('DDIM', 'DPMSolverMultistep', 'HeunDiscrete',
                                                        'KarrasDPM', 'K_EULER_ANCESTRAL', 'K_EULER', 'PNDM'))
                 num_inference_steps = st.slider(
                     "Number of denoising steps", value=50, min_value=1, max_value=500)
@@ -56,9 +58,9 @@ def configure_sidebar() -> None:
                 high_noise_frac = st.slider(
                     "Fraction of noise to use for `expert_ensemble_refiner`", value=0.8, max_value=1.0, step=0.1)
             prompt = st.text_area(
-                ":orange[**Enter prompt: start typing, Shakespeare ✍🏾**]",
+                ":orange[**Ce que je veux...**]",
                 value="An astronaut riding a rainbow unicorn, cinematic, dramatic")
-            negative_prompt = st.text_area(":orange[**Party poopers you don't want in image? 🙅🏽‍♂️**]",
+            negative_prompt = st.text_area(":orange[**Ce que je ne veux pas...**]",
                                            value="the absolute worst quality, distorted features",
                                            help="This is a negative prompt, basically type what you don't want to see in the generated image")
 
@@ -109,35 +111,24 @@ def main_page(submitted: bool, width: int, height: int, num_outputs: int,
         negative_prompt (str): Text prompt for elements to avoid in the image.
     """
     if submitted:
-        with st.status('👩🏾‍🍳 Whipping up your words into art...', expanded=True) as status:
-            st.write("⚙️ Model initiated")
-            st.write("🙆‍♀️ Stand up and strecth in the meantime")
+        with st.status('Création demandée...', expanded=True) as status:
+            st.write("Lancement initialisé")
+            st.write("Veuillez patientez quelques secondes...")
             try:
                 # Only call the API if the "Submit" button was pressed
                 if submitted:
                     # Calling the replicate API to get the image
                     with generated_images_placeholder.container():
                         all_images = []  # List to store all generated images
-                        output = replicate.run(
-                            REPLICATE_MODEL_ENDPOINTSTABILITY,
-                            input={
-                                "prompt": prompt,
-                                "width": width,
-                                "height": height,
-                                "num_outputs": num_outputs,
-                                "scheduler": scheduler,
-                                "num_inference_steps": num_inference_steps,
-                                "guidance_scale": guidance_scale,
-                                "prompt_stregth": prompt_strength,
-                                "refine": refine,
-                                "high_noise_frac": high_noise_frac
-                            }
-                        )
-                        if output:
-                            st.toast(
-                                'Your image has been generated!', icon='😍')
+                        url = requests.post(url = FASTAPI_URL + "/test", json = {})
+                        if url:
+                            st.toast('Création terminée !', icon='😍')
+                            # Télécharger l'image à partir de l'URL
+                        image_response = requests.get(url)
+                        if image_response.status_code == 200:
+                            image = Image.open(BytesIO(image_response.content))
                             # Save generated image to session state
-                            st.session_state.generated_image = output
+                            st.session_state.generated_image = image
 
                             # Displaying the image
                             for image in st.session_state.generated_image:
